@@ -1,0 +1,95 @@
+<!--Name: Jared Wackyn Laordin-->
+<!DOCTYPE html>
+<html lang="en">
+
+<!-- 
+    Prelim Lab Work 2 - Attendance Tracker
+    This file contains the structure for the login and dashboard interface.
+    It links to external fonts and the main stylesheet.
+-->
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prelim Lab Work 2 - Attendance Tracker</title>
+
+    <!-- Google Fonts: 'Outfit' for a modern look -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+    <!-- External CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <!-- Main Container for the Application -->
+    <main class="container">
+
+        <!-- ================= -->
+        <!--   Login Section   -->
+        <!-- ================= -->
+        <section id="login-section" class="card active">
+            <header class="card-header">
+                <h1>Welcome Back</h1>
+                <p>Please enter your credentials to log in.</p>
+            </header>
+
+            <form id="login-form">
+                <!-- Username Input -->
+                <div class="input-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" name="username" placeholder="Enter your username" required
+                        autocomplete="username">
+                </div>
+
+                <!-- Password Input -->
+                <div class="input-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" placeholder="Enter your password" required
+                        autocomplete="current-password">
+                </div>
+
+                <!-- Error Message Container (Hidden by default) -->
+                <div class="error-message" id="error-msg">Incorrect username or password!</div>
+
+                <!-- Submit Button -->
+                <button type="submit" class="btn-primary">Log In</button>
+            </form>
+        </section>
+
+        <!-- ===================== -->
+        <!--   Dashboard Section   -->
+        <!-- ===================== -->
+        <section id="dashboard-section" class="card hidden">
+            <header class="card-header">
+                <h2>Attendance Recorded</h2>
+                <p class="user-greeting">Welcome, <span id="display-username">User</span>!</p>
+            </header>
+
+            <!-- Real-time Clock and Recorded Login Time -->
+            <div class="time-display">
+                <div class="clock" id="clock">00:00:00</div>
+                <div class="date" id="date">January 1, 2026</div>
+                <div class="login-info" style="margin-top: 15px; color: var(--primary-color); font-weight: 500;">
+                    Login Time: <span id="login-time">--</span>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="actions">
+                <p class="status-text">Your attendance has been logged.</p>
+                <button id="download-btn" class="btn-secondary">
+                    Download Attendance Summary (.csv)
+                </button>
+                <button id="logout-btn" class="btn-text">Log Out</button>
+            </div>
+        </section>
+    </main>
+
+    <!-- Main Application Logic -->
+    <script src="script.js"></script>
+</body>
+
+</html>
