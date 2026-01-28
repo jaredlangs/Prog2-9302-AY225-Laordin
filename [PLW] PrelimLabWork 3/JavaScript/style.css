@@ -148,6 +148,37 @@ input {
     font-family: inherit;
 }
 
+.attendance-weeks {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+.week-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.week-row label {
+    margin-bottom: 0;
+    min-width: 70px;
+}
+.attendance-select {
+    flex: 1;
+    padding: 0.625rem 0.75rem;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    font-size: 0.875rem;
+    background: #fff;
+    color: var(--text-primary);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.attendance-select:focus {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.05);
+    outline: none;
+}
+
 input:focus {
     border-color: var(--accent-color);
     box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.05);
