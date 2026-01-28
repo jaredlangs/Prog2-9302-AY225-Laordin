@@ -1,13 +1,13 @@
-import javax.swing.*;
-import javax.swing.border.*;
-import javax.swing.table.DefaultTableModel;
-import javax.swing.text.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import javax.swing.*;
+import javax.swing.border.*;
+import javax.swing.table.DefaultTableModel;
+import javax.swing.text.*;
 
 public class PrelimCalculatorJared extends JFrame {
 
@@ -33,7 +33,8 @@ public class PrelimCalculatorJared extends JFrame {
 
     // Inputs
     private JTextField nameField;
-    private JTextField attendanceField, lab1Field, lab2Field, lab3Field;
+    private JComboBox<String> week1, week2, week3, week4, week5;
+    private JTextField lab1Field, lab2Field, lab3Field;
 
     // Outputs
     private JLabel resAttendance, resAttendancePercent;
@@ -54,7 +55,7 @@ public class PrelimCalculatorJared extends JFrame {
     private static final double LAB_WORK_WEIGHT = 0.60;
     private static final double PASSING_GRADE = 75.0;
     private static final double EXCELLENT_GRADE = 100.0;
-    private static final int TOTAL_MEETINGS = 4;
+    private static final int TOTAL_MEETINGS = 5;
 
     public PrelimCalculatorJared() {
         // Dynamic path resolution
@@ -128,7 +129,7 @@ public class PrelimCalculatorJared extends JFrame {
         mainContainer.add(toolbar, BorderLayout.SOUTH);
 
         add(mainContainer);
-        setSize(1000, 700);
+        setSize(1000, 870);
         setLocationRelativeTo(null);
     }
 
@@ -144,7 +145,7 @@ public class PrelimCalculatorJared extends JFrame {
             if (f.exists()) {
                 try (PrintWriter pw = new PrintWriter(new FileWriter(f))) {
                     // Write header only
-                    pw.println("Timestamp,Name,Attendance,Lab1,Lab2,Lab3,Average,ClassStanding,RequiredExam,Status");
+                    pw.println("Timestamp,Name,Attendance,Lab1,Lab2,Lab3,Average,ClassStanding,RequiredExam,Status,WeeklyAttendance");
                     JOptionPane.showMessageDialog(this, "Database cleared successfully.");
                 } catch (IOException e) {
                     JOptionPane.showMessageDialog(this, "Error clearing database: " + e.getMessage());
@@ -161,7 +162,7 @@ public class PrelimCalculatorJared extends JFrame {
         }
         if (!f.exists()) {
             try (PrintWriter pw = new PrintWriter(new FileWriter(f))) {
-                pw.println("Timestamp,Name,Attendance,Lab1,Lab2,Lab3,Average,ClassStanding,RequiredExam,Status");
+                pw.println("Timestamp,Name,Attendance,Lab1,Lab2,Lab3,Average,ClassStanding,RequiredExam,Status,WeeklyAttendance");
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -169,7 +170,7 @@ public class PrelimCalculatorJared extends JFrame {
     }
 
     private void saveRecord(String name, int att, double l1, double l2, double l3, String avg, String cs, String req,
-            String status) {
+            String status, String weeklyAttendance) {
         File f = new File(DB_FILE);
         File parent = f.getParentFile();
         if (parent != null && !parent.exists()) {
@@ -177,9 +178,9 @@ public class PrelimCalculatorJared extends JFrame {
         }
         try (PrintWriter pw = new PrintWriter(new FileWriter(f, true))) {
             String timestamp = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
-            // CSV Format: Time, Name, Att, L1, L2, L3, Avg, CS, Req, Status
-            pw.printf("%s,%s,%d,%.2f,%.2f,%.2f,%s,%s,%s,%s%n",
-                    timestamp, name, att, l1, l2, l3, avg, cs, req, status);
+            // CSV Format: Time, Name, Att, L1, L2, L3, Avg, CS, Req, Status, WeeklyAttendance
+            pw.printf("%s,%s,%d,%.2f,%.2f,%.2f,%s,%s,%s,%s,%s%n",
+                    timestamp, name, att, l1, l2, l3, avg, cs, req, status, weeklyAttendance);
         } catch (IOException e) {
             JOptionPane.showMessageDialog(this, "Error saving to database: " + e.getMessage());
         }
@@ -200,8 +201,43 @@ public class PrelimCalculatorJared extends JFrame {
         // Input Fields
         panel.add(createInputGroup("Student Name", "", nameField = createField(false, 200)));
         panel.add(Box.createVerticalStrut(15));
-        panel.add(createInputGroup("Attendance (Meetings)", "/ 4", attendanceField = createField(true, 100)));
-        panel.add(Box.createVerticalStrut(15));
+        
+        // Attendance section with 5 weeks
+        JLabel attendanceLabel = new JLabel("Weekly Attendance");
+        attendanceLabel.setFont(SECTION_FONT);
+        attendanceLabel.setForeground(TEXT_PRIMARY);
+        attendanceLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.add(attendanceLabel);
+        panel.add(Box.createVerticalStrut(10));
+        
+        // Create week comboboxes in a grid
+        JPanel weekPanel = new JPanel(new GridLayout(5, 2, 10, 8));
+        weekPanel.setBackground(BG_COLOR);
+        weekPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        weekPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 200));
+        
+        String[] options = {"Select", "Present", "Absent", "Excused"};
+        
+        week1 = createWeekComboBox(options);
+        week2 = createWeekComboBox(options);
+        week3 = createWeekComboBox(options);
+        week4 = createWeekComboBox(options);
+        week5 = createWeekComboBox(options);
+        
+        weekPanel.add(createWeekLabel("Week 1:"));
+        weekPanel.add(week1);
+        weekPanel.add(createWeekLabel("Week 2:"));
+        weekPanel.add(week2);
+        weekPanel.add(createWeekLabel("Week 3:"));
+        weekPanel.add(week3);
+        weekPanel.add(createWeekLabel("Week 4:"));
+        weekPanel.add(week4);
+        weekPanel.add(createWeekLabel("Week 5:"));
+        weekPanel.add(week5);
+        
+        panel.add(weekPanel);
+        panel.add(Box.createVerticalStrut(20));
+        
         panel.add(createInputGroup("Lab Work 1", "/ 100", lab1Field = createField(false, 100)));
         panel.add(Box.createVerticalStrut(15));
         panel.add(createInputGroup("Lab Work 2", "/ 100", lab2Field = createField(false, 100)));
@@ -259,6 +295,23 @@ public class PrelimCalculatorJared extends JFrame {
                 new EmptyBorder(8, 15, 8, 15)));
         btn.setFocusPainted(false);
         return btn;
+    }
+
+    private JComboBox<String> createWeekComboBox(String[] options) {
+        JComboBox<String> combo = new JComboBox<>(options);
+        combo.setFont(INPUT_FONT);
+        combo.setPreferredSize(new Dimension(100, 40));
+        combo.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        combo.setBackground(Color.WHITE);
+        combo.setForeground(TEXT_PRIMARY);
+        return combo;
+    }
+
+    private JLabel createWeekLabel(String text) {
+        JLabel label = new JLabel(text);
+        label.setFont(LABEL_FONT);
+        label.setForeground(TEXT_PRIMARY);
+        return label;
     }
 
     private JPanel createInputGroup(String labelText, String suffixText, JTextField field) {
@@ -440,21 +493,62 @@ public class PrelimCalculatorJared extends JFrame {
 
     private void calculateAndSave() {
         try {
-            if (nameField.getText().trim().isEmpty() || attendanceField.getText().isEmpty() ||
+            if (nameField.getText().trim().isEmpty() ||
                     lab1Field.getText().isEmpty() || lab2Field.getText().isEmpty() || lab3Field.getText().isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Please fill in all fields (including Name).");
+                JOptionPane.showMessageDialog(this, "Please fill in all fields (including Name and all attendance selections).");
+                return;
+            }
+
+            // Check if all weeks are selected
+            if (week1.getSelectedIndex() == 0 || week2.getSelectedIndex() == 0 || 
+                week3.getSelectedIndex() == 0 || week4.getSelectedIndex() == 0 || week5.getSelectedIndex() == 0) {
+                JOptionPane.showMessageDialog(this, "Please select attendance status for all 5 weeks.");
                 return;
             }
 
             String name = nameField.getText().trim();
-            int att = Integer.parseInt(attendanceField.getText());
+            
+            // Get attendance for each week
+            String[] weeks = {
+                (String) week1.getSelectedItem(),
+                (String) week2.getSelectedItem(),
+                (String) week3.getSelectedItem(),
+                (String) week4.getSelectedItem(),
+                (String) week5.getSelectedItem()
+            };
+            
+            // Count present and absent (Excused counts as present)
+            int presentCount = 0;
+            int absentCount = 0;
+            
+            for (String week : weeks) {
+                if (week.equals("Present") || week.equals("Excused")) {
+                    presentCount++;
+                } else if (week.equals("Absent")) {
+                    absentCount++;
+                }
+            }
+            
+            // Check for late enrollee: absent in weeks 1&2 but present in 3,4,5
+            boolean isLateEnrollee = false;
+            String week1Status = (String) week1.getSelectedItem();
+            String week2Status = (String) week2.getSelectedItem();
+            String week3Status = (String) week3.getSelectedItem();
+            String week4Status = (String) week4.getSelectedItem();
+            String week5Status = (String) week5.getSelectedItem();
+            
+            if ((week1Status.equals("Absent") || week2Status.equals("Absent")) &&
+                !week3Status.equals("Absent") && !week4Status.equals("Absent") && !week5Status.equals("Absent")) {
+                isLateEnrollee = true;
+            }
+            
             double l1 = Double.parseDouble(lab1Field.getText());
             double l2 = Double.parseDouble(lab2Field.getText());
             double l3 = Double.parseDouble(lab3Field.getText());
 
             // Display Logic
-            resAttendance.setText(att + " / 4");
-            double attPct = (att / (double) TOTAL_MEETINGS) * 100;
+            resAttendance.setText(presentCount + " / 5");
+            double attPct = (presentCount / (double) TOTAL_MEETINGS) * 100;
             resAttendancePercent.setText(df.format(attPct) + "%");
             resLab1.setText(df.format(l1));
             resLab2.setText(df.format(l2));
@@ -462,14 +556,22 @@ public class PrelimCalculatorJared extends JFrame {
 
             String reqExamStr = "-";
             String statusStr = "Pending";
+            String weeklyAttendance = String.format("W1:%s,W2:%s,W3:%s,W4:%s,W5:%s", 
+                week1Status, week2Status, week3Status, week4Status, week5Status);
 
-            if (att < 2) {
+            // AUTO-FAIL: If 4 or more absences OR (less than 2 present AND not a late enrollee)
+            if (absentCount >= 4 || (presentCount < 2 && !isLateEnrollee)) {
                 // FAIL scenario
                 resLabAvg.setText("-");
                 resClassStanding.setText("-");
                 updateBox(passingBox, passingTitle, passingValue, ERROR_BG, ERROR_TEXT, "FAIL");
                 updateBox(excellentBox, excellentTitle, excellentValue, ERROR_BG, ERROR_TEXT, "FAIL");
-                remarksText.setText("Automatic Failure: Less than 50% attendance.");
+                
+                if (absentCount >= 4) {
+                    remarksText.setText("Automatic Failure: 4 or more absences detected. Attendance does not meet minimum requirements.");
+                } else {
+                    remarksText.setText("Automatic Failure: Less than 50% attendance and not a late enrollee.");
+                }
                 remarksText.setForeground(ERROR_TEXT);
                 statusStr = "Failed (Attendance)";
             } else {
@@ -482,7 +584,7 @@ public class PrelimCalculatorJared extends JFrame {
                 double reqPass = Math.ceil((PASSING_GRADE - (cs * CLASS_STANDING_WEIGHT)) / PRELIM_EXAM_WEIGHT);
                 double reqExc = Math.ceil((EXCELLENT_GRADE - (cs * CLASS_STANDING_WEIGHT)) / PRELIM_EXAM_WEIGHT);
 
-                updatePassingBox(reqPass);
+                updatePassingBox(reqPass, reqExc);
                 updateExcellentBox(reqExc);
 
                 reqExamStr = (reqPass <= 0) ? "Passed" : (reqPass > 100 ? "Impossible" : String.valueOf((int) reqPass));
@@ -490,7 +592,7 @@ public class PrelimCalculatorJared extends JFrame {
             }
 
             // Save to DB
-            saveRecord(name, att, l1, l2, l3, resLabAvg.getText(), resClassStanding.getText(), reqExamStr, statusStr);
+            saveRecord(name, presentCount, l1, l2, l3, resLabAvg.getText(), resClassStanding.getText(), reqExamStr, statusStr, weeklyAttendance);
             JOptionPane.showMessageDialog(this, "Grades Calculated & Saved for: " + name);
 
         } catch (NumberFormatException ex) {
@@ -500,12 +602,12 @@ public class PrelimCalculatorJared extends JFrame {
 
     private void showDatabaseDialog() {
         JDialog d = new JDialog(this, "Student Database Records", true);
-        d.setSize(900, 500);
+        d.setSize(1200, 500);
         d.setLocationRelativeTo(this);
 
         DefaultTableModel model = new DefaultTableModel();
         // Load columns
-        String[] columns = { "Timestamp", "Name", "Att", "Lab1", "Lab2", "Lab3", "Avg", "CS", "Required", "Status" };
+        String[] columns = { "Timestamp", "Name", "Att", "Lab1", "Lab2", "Lab3", "Avg", "CS", "Required", "Status", "Weekly" };
         for (String c : columns)
             model.addColumn(c);
 
@@ -572,10 +674,14 @@ public class PrelimCalculatorJared extends JFrame {
         val.setText(text);
     }
 
-    private void updatePassingBox(double val) {
+    private void updatePassingBox(double val, double reqExc) {
         if (val <= 0) {
             updateBox(passingBox, passingTitle, passingValue, SUCCESS_BG, SUCCESS_TEXT, "Passed");
-            remarksText.setText("Congratulations! You have already secured a passing grade.");
+            StringBuilder remarks = new StringBuilder("Congratulations! You have already secured a passing grade.");
+            if (reqExc > 100) {
+                remarks.append(" However, it is impossible to achieve an Excellent grade (100).");
+            }
+            remarksText.setText(remarks.toString());
             remarksText.setForeground(SUCCESS_TEXT);
         } else if (val > 100) {
             updateBox(passingBox, passingTitle, passingValue, ERROR_BG, ERROR_TEXT, "N/A");
@@ -584,15 +690,29 @@ public class PrelimCalculatorJared extends JFrame {
         } else {
             int iVal = (int) Math.ceil(val);
             updateBox(passingBox, passingTitle, passingValue, SUCCESS_BG, SUCCESS_TEXT, String.valueOf(iVal));
-            remarksText.setText("To pass (75), you need at least " + iVal + " on the Exam.");
+            
+            // Calculate CS from the displayed values
+            String csText = resClassStanding.getText();
+            double cs = Double.parseDouble(csText);
+            
+            // Calculate projected grade with exam score of 100
+            double projectedGrade = (cs * CLASS_STANDING_WEIGHT) + (100 * PRELIM_EXAM_WEIGHT);
+            
+            StringBuilder remarks = new StringBuilder();
+            remarks.append("Current Standing: ").append(df.format(cs)).append(" - ");
+            remarks.append("You have not yet passed. Your grade depends on your exam performance. ");
+            remarks.append("With an exam score of 100, your Prelim grade would be ").append(df.format(projectedGrade)).append(". ");
+            remarks.append("To pass (75), you need at least ").append(iVal).append(" on the Exam.");
+            if (reqExc > 100) {
+                remarks.append(" It is impossible to achieve an Excellent grade (100).");
+            }
+            remarksText.setText(remarks.toString());
             remarksText.setForeground(TEXT_PRIMARY);
         }
     }
 
     private void updateExcellentBox(double val) {
-        if (val > 100)
-            updateBox(excellentBox, excellentTitle, excellentValue, WARNING_BG, WARNING_TEXT, "N/A");
-        else if (val <= 0)
+        if (val <= 0)
             updateBox(excellentBox, excellentTitle, excellentValue, WARNING_BG, WARNING_TEXT, "Secured");
         else
             updateBox(excellentBox, excellentTitle, excellentValue, WARNING_BG, WARNING_TEXT,
@@ -601,7 +721,6 @@ public class PrelimCalculatorJared extends JFrame {
 
     private void clearForm() {
         nameField.setText("");
-        attendanceField.setText("");
         lab1Field.setText("");
         lab2Field.setText("");
         lab3Field.setText("");
