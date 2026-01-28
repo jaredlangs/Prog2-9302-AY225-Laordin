@@ -8,7 +8,8 @@ const ATTENDANCE_WEIGHT = 0.40;
 const LAB_WORK_WEIGHT = 0.60;
 const PASSING_GRADE = 75.0;
 const EXCELLENT_GRADE = 100.0;
-const TOTAL_MEETINGS = 4;
+const TOTAL_WEEKS = 5;
+const MAX_ABSENCES = 4; // Auto-fail at 4 absences
 
 // DOM Elements
 const form = document.getElementById('gradeForm');
@@ -18,7 +19,13 @@ const recordsBody = document.getElementById('recordsBody');
 
 // Inputs
 const nameInput = document.getElementById('studentName');
-const attendanceInput = document.getElementById('attendance');
+const weekInputs = [
+    document.getElementById('week1'),
+    document.getElementById('week2'),
+    document.getElementById('week3'),
+    document.getElementById('week4'),
+    document.getElementById('week5')
+];
 const lab1Input = document.getElementById('lab1');
 const lab2Input = document.getElementById('lab2');
 const lab3Input = document.getElementById('lab3');
@@ -80,7 +87,7 @@ function updateRequirementBox(box, contentDiv, score, label, isPassing) {
         // Numeric handling
         if (score > 100) {
             box.classList.add('impossible');
-            display = 'N/A';
+            display = Math.round(score);
         } else if (score <= 0) {
             box.classList.add(isPassing ? 'passing' : 'excellent');
             display = isPassing ? 'Passed' : 'Secured';
@@ -97,44 +104,52 @@ function calculateGrade(event) {
     event.preventDefault();
 
     const nameVal = nameInput.value.trim();
-    const attendanceVal = attendanceInput.value.trim();
     const lab1Val = lab1Input.value.trim();
     const lab2Val = lab2Input.value.trim();
     const lab3Val = lab3Input.value.trim();
 
-    if (nameVal === '' || attendanceVal === '' || lab1Val === '' || lab2Val === '' || lab3Val === '') {
-        alert("Please fill all fields (including Name).");
+    if (nameVal === '' || lab1Val === '' || lab2Val === '' || lab3Val === '') {
+        alert("Please fill all fields (Name and all Lab Grades).");
         return;
     }
 
-    const attendanceCount = parseInt(attendanceVal);
+    // Parse lab grades
     const lab1 = parseFloat(lab1Val);
     const lab2 = parseFloat(lab2Val);
     const lab3 = parseFloat(lab3Val);
 
     // Validation
-    if (isNaN(attendanceCount) || attendanceCount < 1 || attendanceCount > 4) {
-        alert("Attendance must be 1-4."); return;
-    }
     if (lab1 < 0 || lab1 > 100 || lab2 < 0 || lab2 > 100 || lab3 < 0 || lab3 > 100) {
-        alert("Grades must be 0-100."); return;
+        alert("Grades must be 0-100.");
+        return;
     }
 
-    // 1. Basic Stats
-    resAttendance.textContent = `${attendanceCount} / 4`;
-    const attendancePercent = (attendanceCount / TOTAL_MEETINGS) * 100;
-    resAttendancePercent.textContent = `${attendancePercent}%`;
+    // Get attendance data from dropdowns
+    const attendanceData = weekInputs.map(input => input.value);
+    
+    // Count attendance:
+    // - Present or Excused = counted as present
+    // - Absent = counted as absent
+    // - Empty/-- = ignored (late enrollee)
+    let presentCount = 0;
+    let absenceCount = 0;
+    let weeksRecorded = 0;
 
-    resLab1.textContent = formatNumber(lab1);
-    resLab2.textContent = formatNumber(lab2);
-    resLab3.textContent = formatNumber(lab3);
+    attendanceData.forEach(status => {
+        if (status === 'present' || status === 'excused') {
+            presentCount++;
+            weeksRecorded++;
+        } else if (status === 'absent') {
+            absenceCount++;
+            weeksRecorded++;
+        }
+        // Empty status is ignored (not counted)
+    });
 
-    let finalCS = 0;
-    let finalReqExam = 0;
-    let finalStatus = "Ongoing";
-
-    // 2. Auto-Fail Check
-    if (attendanceCount < 2) {
+    // Check for auto-fail: 4 or more absences
+    if (absenceCount >= MAX_ABSENCES) {
+        resAttendance.textContent = `${presentCount} Present, ${absenceCount} Absent`;
+        resAttendancePercent.textContent = `FAILED (${absenceCount} absences)`;
         resLabAvg.textContent = "-";
         resClassStanding.textContent = "-";
 
@@ -144,16 +159,30 @@ function calculateGrade(event) {
         excellentBox.className = 'req-box impossible';
         excellentContent.innerHTML = '<span class="req-score">FAIL</span>';
 
-        remarksText.innerHTML = "<span style='color: var(--error-text)'>Automatic Failure: Less than 50% attendance.</span>";
+        remarksText.innerHTML = "<span style='color: var(--error-text)'>Automatic Failure: 4 or more absences.</span>";
 
-        finalCS = 0;
-        finalStatus = "Failed (Attendance)";
-        saveRecordToDB(nameVal, 0, "FAIL", "Failed");
+        saveRecordToDB(nameVal, 0, "FAIL", "Failed (Absences)");
 
         resultsSection.classList.remove('results-hidden');
         resultsSection.classList.add('active');
         return;
     }
+
+    // If no weeks recorded (late enrollee who didn't mark any), treat as 100% (considered all present)
+    let attendancePercent;
+    if (weeksRecorded === 0) {
+        attendancePercent = 100;
+        resAttendance.textContent = "0 / 0 (No weeks marked - considered present)";
+    } else {
+        attendancePercent = (presentCount / weeksRecorded) * 100;
+        resAttendance.textContent = `${presentCount} / ${weeksRecorded} weeks`;
+    }
+
+    resAttendancePercent.textContent = `${Math.round(attendancePercent)}%`;
+
+    resLab1.textContent = formatNumber(lab1);
+    resLab2.textContent = formatNumber(lab2);
+    resLab3.textContent = formatNumber(lab3);
 
     // 3. Calculation
     const labAvg = (lab1 + lab2 + lab3) / 3;
@@ -171,14 +200,29 @@ function calculateGrade(event) {
     updateRequirementBox(excellentBox, excellentContent, reqExc, 'Excellent', false);
 
     // 5. Remarks
+    let finalStatus = "Ongoing";
     if (reqPass <= 0) {
-        remarksText.innerHTML = "<span style='color: var(--success-text)'>Great! You have already passed based on Class Standing.</span>";
+        let msg = "<span style='color: var(--success-text)'>Congratulations! You have already secured a passing grade.";
+        if (reqExc > 100) {
+            msg += " However, it is impossible to achieve an Excellent grade (100).";
+        }
+        msg += "</span>";
+        remarksText.innerHTML = msg;
         finalStatus = "Passed";
     } else if (reqPass > 100) {
         remarksText.innerHTML = "<span style='color: var(--error-text)'>Warning: It is mathematically impossible to reach 75.</span>";
         finalStatus = "Impossible";
     } else {
-        remarksText.innerHTML = `To pass the subject with a grade of 75, you need to score at least <span>${Math.ceil(reqPass)}</span> on the Prelim Exam.`;
+        // Calculate projected grade with exam score of 100
+        const projectedGrade = (classStanding * CLASS_STANDING_WEIGHT) + (100 * PRELIM_EXAM_WEIGHT);
+        
+        let msg = `Current Standing: ${formatNumber(classStanding)} - You have not yet passed. Your grade depends on your exam performance. `;
+        msg += `With an exam score of 100, your Prelim grade would be ${formatNumber(projectedGrade)}. `;
+        msg += `To pass the subject with a grade of 75, you need to score at least <span>${Math.ceil(reqPass)}</span> on the Prelim Exam.`;
+        if (reqExc > 100) {
+            msg += " It is impossible to achieve an Excellent grade (100).";
+        }
+        remarksText.innerHTML = msg;
         finalStatus = "Ongoing";
     }
 
@@ -274,7 +318,7 @@ window.exportCSV = function () {
 
 function clearForm() {
     nameInput.value = '';
-    attendanceInput.value = '';
+    weekInputs.forEach(input => input.value = '');
     lab1Input.value = '';
     lab2Input.value = '';
     lab3Input.value = '';
