@@ -8,44 +8,124 @@
 </head>
 <body>
 
-    <div class="header">
-        <h1>Student Records - Jared Wackyn Laordin [23-1270-536]</h1>
-        <p class="sub">Programmer Identifier: Jared Wackyn Laordin — 23-1270-536</p>
-    </div>
+    <div id="toastContainer" class="toast-container"></div>
 
-    <div class="table-container">
-        <table id="studentTable">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>First Name</th>
-                    <th>Last Name</th>
-                    <th>Lab 1</th>
-                    <th>Lab 2</th>
-                    <th>Lab 3</th>
-                    <th>Prelim</th>
-                    <th>Attendance</th>
-                </tr>
-            </thead>
-            <tbody>
-                </tbody>
-        </table>
-    </div>
-
-    <div class="input-panel">
-        <div class="row">
-            <label>ID:</label> <input type="text" id="txtID" class="input-med" maxlength="9">
-            <label>Name:</label> <input type="text" id="txtName" class="input-long">
-            <button onclick="addRecord()">ADD RECORD</button>
-            <button onclick="deleteRecord()">DELETE SELECTED</button>
-        </div>
+    <div class="container">
         
-        <div class="row">
-            <label>Lab 1:</label> <input type="number" id="txtLab1" class="input-short">
-            <label>Lab 2:</label> <input type="number" id="txtLab2" class="input-short">
-            <label>Lab 3:</label> <input type="number" id="txtLab3" class="input-short">
-            <label>Prelim:</label> <input type="number" id="txtPrelim" class="input-short">
-            <label>Attend:</label> <input type="number" id="txtAtt" class="input-short">
+        <div class="card">
+            <div class="header-section">
+                <div class="header-top">
+                    <div class="header-info">
+                        <h1>Student Records</h1>
+                        <p class="subtitle">System Admin: Jared Wackyn Laordin — 23-1270-536</p>
+                    </div>
+                    <div class="toolbar">
+                        <button class="btn btn-secondary btn-sm" onclick="undo()">⟲ Undo</button>
+                        <button class="btn btn-secondary btn-sm" onclick="redo()">⟳ Redo</button>
+                    </div>
+                </div>
+                
+                <div class="search-wrapper">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" id="searchInput" onkeyup="renderTable()" placeholder="Search by ID or Name...">
+                </div>
+            </div>
+
+            <div class="table-wrapper">
+                <table id="studentTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>First Name</th>
+                            <th>Last Name</th>
+                            <th>Lab 1 <span class="header-sub">/100</span></th>
+                            <th>Lab 2 <span class="header-sub">/100</span></th>
+                            <th>Lab 3 <span class="header-sub">/100</span></th>
+                            <th>Prelim <span class="header-sub">/100</span></th>
+                            <th>Attend <span class="header-sub">/100</span></th>
+                            <th style="text-align: right;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        </tbody>
+                </table>
+            </div>
+        <div style="margin-top: 10px; display: flex; justify-content: flex-end; gap: 20px; color: #71717a; font-size: 12px;">
+            <span id="totalCount" style="font-weight: 500;">Total: 0</span>
+            <span id="selectCount">0 selected</span>
+        </div>
+        </div>
+
+        <div class="card">
+            <div class="header-section" style="border:none; margin:0; padding-bottom: 10px;">
+                <div class="header-info">
+                    <h1>Manage Records</h1>
+                </div>
+            </div>
+            
+            <div class="form-grid">
+                <div class="input-group">
+                    <label>Student ID</label>
+                    <input type="text" id="txtID" maxlength="9" placeholder="e.g. 231270536">
+                </div>
+                <div class="input-group full-width" style="grid-column: span 2;">
+                    <label>Full Name</label>
+                    <input type="text" id="txtName" placeholder="e.g. Jared Wackyn Laordin">
+                </div>
+            </div>
+
+            <div class="form-grid">
+                <div class="input-group"><label>Lab 1 (100)</label><input type="number" id="txtLab1" min="0" max="100"></div>
+                <div class="input-group"><label>Lab 2 (100)</label><input type="number" id="txtLab2" min="0" max="100"></div>
+                <div class="input-group"><label>Lab 3 (100)</label><input type="number" id="txtLab3" min="0" max="100"></div>
+                <div class="input-group"><label>Prelim (100)</label><input type="number" id="txtPrelim" min="0" max="100"></div>
+                <div class="input-group"><label>Attend (100)</label><input type="number" id="txtAtt" min="0" max="100"></div>
+            </div>
+
+            <div class="action-row">
+                <button class="btn btn-danger" onclick="deleteSelected()">Delete Selected</button>
+                <button class="btn btn-primary" onclick="addRecord()">Add New Record</button>
+            </div>
+        </div>
+
+    </div>
+
+    <div id="editModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Edit Record</h2>
+                <button class="btn btn-secondary btn-sm" onclick="closeModal()">✕</button>
+            </div>
+            
+            <input type="hidden" id="editIndex">
+
+            <div class="form-grid">
+                <div class="input-group full-width">
+                    <label>Student ID (Read Only)</label>
+                    <input type="text" id="editID" readonly style="background-color: #f9fafb; color: #71717a;">
+                </div>
+                <div class="input-group">
+                    <label>First Name</label>
+                    <input type="text" id="editFirst">
+                </div>
+                <div class="input-group">
+                    <label>Last Name</label>
+                    <input type="text" id="editLast">
+                </div>
+            </div>
+
+            <div class="form-grid">
+                <div class="input-group"><label>Lab 1 (100)</label><input type="number" id="editL1" min="0" max="100"></div>
+                <div class="input-group"><label>Lab 2 (100)</label><input type="number" id="editL2" min="0" max="100"></div>
+                <div class="input-group"><label>Lab 3 (100)</label><input type="number" id="editL3" min="0" max="100"></div>
+                <div class="input-group"><label>Prelim (100)</label><input type="number" id="editPre" min="0" max="100"></div>
+                <div class="input-group"><label>Attend (100)</label><input type="number" id="editAtt" min="0" max="100"></div>
+            </div>
+
+            <div class="action-row">
+                <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="confirmEdit()">Save Changes</button>
+            </div>
         </div>
     </div>
 
