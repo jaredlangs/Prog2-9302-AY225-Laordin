@@ -1051,29 +1051,32 @@ function validateScores(l1, l2, l3, pre, att) {
 function renderTable() {
     const tbody = document.querySelector("#studentTable tbody");
     const countSpan = document.getElementById("selectCount");
-    const totalSpan = document.getElementById("totalCount"); // <--- NEW SELECTOR
+    const totalSpan = document.getElementById("totalCount"); 
     const searchText = document.getElementById("searchInput").value.toLowerCase();
     
     tbody.innerHTML = ""; 
-
     let visibleCount = 0;
 
     studentData.forEach((student, index) => {
-        // --- SEARCH FILTER LOGIC ---
         const fullName = `${student.first} ${student.last}`.toLowerCase();
         const idMatch = student.id.toLowerCase().includes(searchText);
         const nameMatch = fullName.includes(searchText);
 
-        if (searchText && !idMatch && !nameMatch) {
-            return; 
-        }
+        if (searchText && !idMatch && !nameMatch) return; 
+
+        // --- CALCULATE AVERAGE ---
+        const scores = [
+            Number(student.l1), 
+            Number(student.l2), 
+            Number(student.l3), 
+            Number(student.pre), 
+            Number(student.att)
+        ];
+        const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
 
         visibleCount++;
         const tr = document.createElement("tr");
-        
-        if (selectedIndices.has(index)) {
-            tr.classList.add("selected");
-        }
+        if (selectedIndices.has(index)) tr.classList.add("selected");
 
         tr.innerHTML = `
             <td><span style="font-family: monospace;">${student.id}</span></td>
@@ -1084,7 +1087,7 @@ function renderTable() {
             <td>${student.l3}</td>
             <td>${student.pre}</td>
             <td>${student.att}</td>
-            <td style="text-align: right;">
+            <td style="font-weight: bold; color: #2563eb;">${avg.toFixed(2)}</td> <td style="text-align: right;">
                 <button class="btn btn-secondary btn-sm" onclick="openEditModal(event, ${index})">Edit</button>
             </td>
         `;
@@ -1102,13 +1105,14 @@ function renderTable() {
     });
 
     if (visibleCount === 0) {
-        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding: 20px; color: #71717a;">No results found.</td></tr>`;
+        // Updated colspan to 10 to match new column count
+        tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding: 20px; color: #71717a;">No results found.</td></tr>`;
     }
 
-    // --- UPDATE COUNTS ---
-    totalSpan.textContent = `Total: ${visibleCount}`; // <--- UPDATE TOTAL TEXT
+    totalSpan.textContent = `Total: ${visibleCount}`;
     countSpan.textContent = `${selectedIndices.size} selected`;
 }
+
 // --- 4. TOAST NOTIFICATION ---
 function showToast(message, type = 'default') {
     const container = document.getElementById("toastContainer");

@@ -133,10 +133,11 @@ public class LaordinStudentRecord extends JFrame {
         JPanel tableCard = createCardPanel();
         tableCard.setLayout(new BorderLayout());
         
+        // UPDATED COLUMNS TO INCLUDE AVERAGE
         String[] columns = {
             "ID", "First Name", "Last Name", 
             "Lab 1 (/100)", "Lab 2 (/100)", "Lab 3 (/100)", 
-            "Prelim (/100)", "Attend (/100)"
+            "Prelim (/100)", "Attend (/100)", "Average"
         };
         
         tableModel = new DefaultTableModel(columns, 0) {
@@ -274,7 +275,7 @@ public class LaordinStudentRecord extends JFrame {
         loadCSVData();
     }
 
-    // --- LOGIC: SHOW NOTIFICATION (UPDATED WITH COLORS) ---
+    // --- LOGIC: SHOW NOTIFICATION ---
     private void showNotification(String message) {
         showNotification(message, false);
     }
@@ -314,14 +315,14 @@ public class LaordinStudentRecord extends JFrame {
         }
     }
 
-    // --- LOGIC: CSV LOADING (UPDATED WITH GREEN SUCCESS) ---
+    // --- LOGIC: CSV LOADING ---
     private void loadCSVData() {
         File file = new File(CSV_FILE_NAME);
         
         if (file.exists()) {
             try (BufferedReader br = new BufferedReader(new FileReader(file))) {
                 parseAndLoad(br);
-                showNotification("Loaded records from file", true); // Green Notification
+                showNotification("Loaded records from file", true);
                 return;
             } catch (IOException e) {
                 System.out.println("Error reading local file: " + e.getMessage());
@@ -334,7 +335,7 @@ public class LaordinStudentRecord extends JFrame {
         if (is != null) {
             try (BufferedReader br = new BufferedReader(new InputStreamReader(is))) {
                 parseAndLoad(br);
-                showNotification("Loaded records from internal resource", true); // Green Notification
+                showNotification("Loaded records from internal resource", true);
             } catch (IOException e) {
                 System.out.println("Error reading resource: " + e.getMessage());
             }
@@ -377,7 +378,6 @@ public class LaordinStudentRecord extends JFrame {
             lblSelectionCount.setText(table.getSelectedRowCount() + " selected");
         }
         if (lblTotalCount != null && table != null) {
-            // Uses getRowCount() which reflects the current filtered view
             lblTotalCount.setText("Total Records: " + table.getRowCount());
         }
     }
@@ -552,10 +552,20 @@ public class LaordinStudentRecord extends JFrame {
 
     private void addStudentToModel(Student s) { studentData.add(s); }
 
+    // --- UPDATED RENDER TABLE WITH CALCULATION ---
     private void renderTable() {
         tableModel.setRowCount(0);
         for (Student s : studentData) {
-            tableModel.addRow(new Object[]{s.id, s.firstName, s.lastName, s.l1, s.l2, s.l3, s.pre, s.att});
+            // Calculate Average: (Sum of 5 components) / 5.0
+            double avg = (s.l1 + s.l2 + s.l3 + s.pre + s.att) / 5.0;
+            // Format to 2 decimal places
+            String avgStr = String.format("%.2f", avg);
+            
+            tableModel.addRow(new Object[]{
+                s.id, s.firstName, s.lastName, 
+                s.l1, s.l2, s.l3, s.pre, s.att, 
+                avgStr // Add average to row
+            });
         }
         updateFooterCounts();
     }
