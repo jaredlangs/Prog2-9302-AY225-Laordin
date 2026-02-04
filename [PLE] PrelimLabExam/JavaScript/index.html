@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Records - Jared Wackyn Laordin [23-1270-536]</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="header">
+        <h1>Student Records - Jared Wackyn Laordin [23-1270-536]</h1>
+        <p class="sub">Programmer Identifier: Jared Wackyn Laordin — 23-1270-536</p>
+    </div>
+
+    <div class="table-container">
+        <table id="studentTable">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>First Name</th>
+                    <th>Last Name</th>
+                    <th>Lab 1</th>
+                    <th>Lab 2</th>
+                    <th>Lab 3</th>
+                    <th>Prelim</th>
+                    <th>Attendance</th>
+                </tr>
+            </thead>
+            <tbody>
+                </tbody>
+        </table>
+    </div>
+
+    <div class="input-panel">
+        <div class="row">
+            <label>ID:</label> <input type="text" id="txtID" class="input-med" maxlength="9">
+            <label>Name:</label> <input type="text" id="txtName" class="input-long">
+            <button onclick="addRecord()">ADD RECORD</button>
+            <button onclick="deleteRecord()">DELETE SELECTED</button>
+        </div>
+        
+        <div class="row">
+            <label>Lab 1:</label> <input type="number" id="txtLab1" class="input-short">
+            <label>Lab 2:</label> <input type="number" id="txtLab2" class="input-short">
+            <label>Lab 3:</label> <input type="number" id="txtLab3" class="input-short">
+            <label>Prelim:</label> <input type="number" id="txtPrelim" class="input-short">
+            <label>Attend:</label> <input type="number" id="txtAtt" class="input-short">
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
