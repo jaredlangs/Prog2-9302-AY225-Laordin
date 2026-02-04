@@ -1,6 +1,13 @@
-/* Programmer: Jared Wackyn Laordin [23-1270-536]
- * Project: Student Record System - Web Version
+/* * Programmer: Jared Wackyn Laordin [23-1270-536]
+ * Project: Student Record System (Black/White + Undo/Redo)
  */
+
+// --- STATE MANAGEMENT ---
+let studentData = [];
+// History Object Structure: { data: stringifiedData, action: "Detailed string" }
+let undoStack = [];
+let redoStack = [];
+let selectedIndices = new Set();
 
 // --- 1. THE MOCK DATA (CSV Format) ---
 const MOCK_CSV_DATA = `StudentID,first_name,last_name,LAB WORK 1,LAB WORK 2,LAB WORK 3,PRELIM EXAM,ATTENDANCE GRADE
@@ -1005,107 +1012,295 @@ const MOCK_CSV_DATA = `StudentID,first_name,last_name,LAB WORK 1,LAB WORK 2,LAB 
 111304064,Inglis,Chilvers,75,43,66,74,74
 064100852,Carie,Rassell,55,56,31,39,15`;
 
-// --- 2. In-memory data + render() (required by spec) ---
-const tableBody = document.querySelector("#studentTable tbody");
-let students = [];
-
-function parseCsvToStudents(csv) {
-    const rows = csv.trim().split('\n');
-    const out = [];
-    for (let i = 1; i < rows.length; i++) {
-        const cols = rows[i].split(',');
-        if (cols.length < 8) continue;
-        out.push({
-            id: cols[0].trim(),
-            first: cols[1].trim(),
-            last: cols[2].trim(),
-            lab1: Number(cols[3].trim()) || 0,
-            lab2: Number(cols[4].trim()) || 0,
-            lab3: Number(cols[5].trim()) || 0,
-            prelim: Number(cols[6].trim()) || 0,
-            attend: Number(cols[7].trim()) || 0
-        });
+// --- 1. INITIALIZATION ---
+function initSystem() {
+    if (typeof MOCK_CSV_DATA !== 'undefined') {
+        const rows = MOCK_CSV_DATA.trim().split('\n');
+        for (let i = 1; i < rows.length; i++) {
+            const cols = rows[i].split(',');
+            if (cols.length >= 8) {
+                studentData.push({
+                    id: cols[0].trim(),
+                    first: cols[1].trim(),
+                    last: cols[2].trim(),
+                    l1: cols[3], l2: cols[4], l3: cols[5],
+                    pre: cols[6], att: cols[7]
+                });
+            }
+        }
     }
-    return out;
+    renderTable();
+    
+    // --- TRIGGER THE GREEN NOTIFICATION HERE ---
+    // We use a small timeout to ensure the UI paints first so the animation plays nicely
+    setTimeout(() => {
+        showToast(`Successfully loaded ${studentData.length} records.`, "success");
+    }, 100);
 }
 
-function render() {
-    // Clear
-    tableBody.innerHTML = '';
+// --- 2. VALIDATION LOGIC ---
+function validateScores(l1, l2, l3, pre, att) {
+    if(l1 < 0 || l1 > 100) return "Lab 1 must be between 0 and 100";
+    if(l2 < 0 || l2 > 100) return "Lab 2 must be between 0 and 100";
+    if(l3 < 0 || l3 > 100) return "Lab 3 must be between 0 and 100";
+    if(pre < 0 || pre > 100) return "Prelim must be between 0 and 100";
+    if(att < 0 || att > 100) return "Attendance must be between 0 and 100";
+    return null; // No error
+}
+// --- 3. RENDER TABLE (With Search Filter) ---
+function renderTable() {
+    const tbody = document.querySelector("#studentTable tbody");
+    const countSpan = document.getElementById("selectCount");
+    const totalSpan = document.getElementById("totalCount"); // <--- NEW SELECTOR
+    const searchText = document.getElementById("searchInput").value.toLowerCase();
+    
+    tbody.innerHTML = ""; 
 
-    // Re-populate from students[] using template literals
-    students.forEach((s, idx) => {
-        tableBody.insertAdjacentHTML('beforeend', `
-            <tr data-idx="${idx}">
-                <td>${s.id}</td>
-                <td>${s.first}</td>
-                <td>${s.last}</td>
-                <td>${s.lab1}</td>
-                <td>${s.lab2}</td>
-                <td>${s.lab3}</td>
-                <td>${s.prelim}</td>
-                <td>${s.attend}</td>
-                <td><button class="btn-delete" data-idx="${idx}">Delete</button></td>
-            </tr>
-        `);
-    });
+    let visibleCount = 0;
 
-    // Attach click handlers (row select) and delete buttons
-    document.querySelectorAll('#studentTable tbody tr').forEach(tr => {
-        tr.onclick = () => {
-            document.querySelectorAll('#studentTable tbody tr').forEach(r => r.classList.remove('selected'));
-            tr.classList.add('selected');
+    studentData.forEach((student, index) => {
+        // --- SEARCH FILTER LOGIC ---
+        const fullName = `${student.first} ${student.last}`.toLowerCase();
+        const idMatch = student.id.toLowerCase().includes(searchText);
+        const nameMatch = fullName.includes(searchText);
+
+        if (searchText && !idMatch && !nameMatch) {
+            return; 
+        }
+
+        visibleCount++;
+        const tr = document.createElement("tr");
+        
+        if (selectedIndices.has(index)) {
+            tr.classList.add("selected");
+        }
+
+        tr.innerHTML = `
+            <td><span style="font-family: monospace;">${student.id}</span></td>
+            <td>${student.first}</td>
+            <td>${student.last}</td>
+            <td>${student.l1}</td>
+            <td>${student.l2}</td>
+            <td>${student.l3}</td>
+            <td>${student.pre}</td>
+            <td>${student.att}</td>
+            <td style="text-align: right;">
+                <button class="btn btn-secondary btn-sm" onclick="openEditModal(event, ${index})">Edit</button>
+            </td>
+        `;
+
+        tr.onclick = (e) => {
+            if (selectedIndices.has(index)) {
+                selectedIndices.delete(index);
+            } else {
+                selectedIndices.add(index);
+            }
+            renderTable();
         };
+
+        tbody.appendChild(tr);
     });
 
-    document.querySelectorAll('.btn-delete').forEach(b => {
-        b.onclick = (ev) => {
-            ev.stopPropagation();
-            const i = Number(b.getAttribute('data-idx'));
-            students.splice(i, 1);
-            render();
-        };
+    if (visibleCount === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding: 20px; color: #71717a;">No results found.</td></tr>`;
+    }
+
+    // --- UPDATE COUNTS ---
+    totalSpan.textContent = `Total: ${visibleCount}`; // <--- UPDATE TOTAL TEXT
+    countSpan.textContent = `${selectedIndices.size} selected`;
+}
+// --- 4. TOAST NOTIFICATION ---
+function showToast(message, type = 'default') {
+    const container = document.getElementById("toastContainer");
+    const toast = document.createElement("div");
+    
+    // Add base class
+    toast.className = "toast";
+    
+    // If type is 'success', add the green class
+    if (type === 'success') {
+        toast.classList.add("success");
+    }
+
+    toast.innerHTML = `<span>${message}</span>`;
+    
+    container.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.style.opacity = "0";
+        toast.style.transform = "translateY(10px)";
+        setTimeout(() => toast.remove(), 300);
+    }, 4000);
+}
+// --- 5. UNDO / REDO ---
+function saveState(actionDescription) {
+    undoStack.push({
+        data: JSON.stringify(studentData),
+        action: actionDescription
     });
+    
+    if(undoStack.length > 50) undoStack.shift();
+    redoStack = []; 
 }
 
-// initial load -> populate students[] then render()
-function loadMockData() {
-    students = parseCsvToStudents(MOCK_CSV_DATA);
-    render();
+function undo() {
+    if (undoStack.length === 0) {
+        showToast("Nothing to undo.");
+        return;
+    }
+    const lastState = undoStack.pop();
+    redoStack.push({ data: JSON.stringify(studentData), action: lastState.action });
+    studentData = JSON.parse(lastState.data);
+    selectedIndices.clear(); 
+    renderTable();
+    showToast(`Undid: ${lastState.action}`);
 }
 
-loadMockData();
+function redo() {
+    if (redoStack.length === 0) {
+        showToast("Nothing to redo.");
+        return;
+    }
+    const futureState = redoStack.pop();
+    undoStack.push({ data: JSON.stringify(studentData), action: futureState.action });
+    studentData = JSON.parse(futureState.data);
+    selectedIndices.clear();
+    renderTable();
+    showToast(`Redid: ${futureState.action}`);
+}
 
-// --- 3. Add Record Logic (push to array + render) ---
+// --- 6. ACTIONS ---
 function addRecord() {
     const id = document.getElementById("txtID").value.trim();
     const fullName = document.getElementById("txtName").value.trim();
-
+    
+    // Get numeric values, default to 0 if empty
     const l1 = Number(document.getElementById("txtLab1").value) || 0;
     const l2 = Number(document.getElementById("txtLab2").value) || 0;
     const l3 = Number(document.getElementById("txtLab3").value) || 0;
     const pre = Number(document.getElementById("txtPrelim").value) || 0;
     const att = Number(document.getElementById("txtAtt").value) || 0;
 
-    if (!id || !fullName) { alert('Missing ID or Name'); return; }
-    if (id.length !== 9 || isNaN(id)) { alert('ID must be 9 digits'); return; }
+    if(!id || !fullName) { alert("Please fill in ID and Name."); return; }
+    if(id.length !== 9 || isNaN(id)) { alert("ID must be exactly 9 digits."); return; }
+    
+    // Validate
+    const error = validateScores(l1, l2, l3, pre, att);
+    if(error) { alert(error); return; }
 
-    const nameParts = fullName.split(' ');
-    const first = nameParts[0];
-    const last = nameParts.slice(1).join(' ') || '-';
+    const nameParts = fullName.split(" ");
+    let last = "-";
+    let first = fullName;
+    if (nameParts.length > 1) {
+        last = nameParts.pop();
+        first = nameParts.join(" ");
+    }
 
-    students.push({ id, first, last, lab1: l1, lab2: l2, lab3: l3, prelim: pre, attend: att });
-    render();
-    document.querySelectorAll('input').forEach(i => i.value = '');
+    saveState(`Added record: ${first} ${last}`);
+
+    studentData.push({
+        id: id, first: first, last: last, 
+        l1: l1, l2: l2, l3: l3, pre: pre, att: att
+    });
+
+    renderTable();
+    document.querySelectorAll(".form-grid input").forEach(i => i.value = "");
+    showToast(`Added record for <b>${first}</b>`);
 }
 
-// --- 4. Delete selected row (uses students[] + render) ---
-function deleteRecord() {
-    const sel = document.querySelector('#studentTable tbody tr.selected');
-    if (!sel) { alert('Select a row first.'); return; }
-    const idx = Number(sel.getAttribute('data-idx'));
-    if (!Number.isNaN(idx)) {
-        students.splice(idx, 1);
-        render();
+function deleteSelected() {
+    if (selectedIndices.size === 0) {
+        alert("Please select at least one row to delete.");
+        return;
+    }
+
+    let names = [];
+    selectedIndices.forEach(index => {
+        if(studentData[index]) names.push(studentData[index].first);
+    });
+    
+    let displayNames = names.slice(0, 3).join(", ");
+    if(names.length > 3) displayNames += ", ...";
+
+    const confirmMsg = `Are you sure you want to delete ${selectedIndices.size} record(s)?\n\n` + names.join("\n");
+
+    if (confirm(confirmMsg)) {
+        saveState(`Deleted ${selectedIndices.size} record(s): ${displayNames}`);
+        studentData = studentData.filter((_, index) => !selectedIndices.has(index));
+        selectedIndices.clear();
+        renderTable();
+        showToast(`Deleted <b>${displayNames}</b>`);
     }
 }
+
+// --- 7. EDIT MODAL ---
+function openEditModal(event, index) {
+    event.stopPropagation();
+    const student = studentData[index];
+    
+    document.getElementById("editIndex").value = index;
+    document.getElementById("editID").value = student.id;
+    document.getElementById("editFirst").value = student.first;
+    document.getElementById("editLast").value = student.last;
+    document.getElementById("editL1").value = student.l1;
+    document.getElementById("editL2").value = student.l2;
+    document.getElementById("editL3").value = student.l3;
+    document.getElementById("editPre").value = student.pre;
+    document.getElementById("editAtt").value = student.att;
+
+    document.getElementById("editModal").style.display = "flex";
+}
+
+function confirmEdit() {
+    const index = parseInt(document.getElementById("editIndex").value);
+    const oldData = studentData[index];
+    
+    const newFirst = document.getElementById("editFirst").value;
+    const newLast = document.getElementById("editLast").value;
+    const newL1 = Number(document.getElementById("editL1").value);
+    const newL2 = Number(document.getElementById("editL2").value);
+    const newL3 = Number(document.getElementById("editL3").value);
+    const newPre = Number(document.getElementById("editPre").value);
+    const newAtt = Number(document.getElementById("editAtt").value);
+
+    // Validate
+    const error = validateScores(newL1, newL2, newL3, newPre, newAtt);
+    if(error) { alert(error); return; }
+
+    let changedFields = [];
+    if(oldData.first !== newFirst) changedFields.push("First Name");
+    if(oldData.last !== newLast) changedFields.push("Last Name");
+    if(oldData.l1 != newL1) changedFields.push("Lab 1");
+    if(oldData.l2 != newL2) changedFields.push("Lab 2");
+    if(oldData.l3 != newL3) changedFields.push("Lab 3");
+    if(oldData.pre != newPre) changedFields.push("Prelim");
+    if(oldData.att != newAtt) changedFields.push("Attend");
+
+    if (changedFields.length === 0) {
+        closeModal();
+        showToast("No changes made.");
+        return;
+    }
+
+    const actionStr = `Updated <b>${oldData.first}</b>: ${changedFields.join(", ")}`;
+    saveState(actionStr);
+
+    studentData[index].first = newFirst;
+    studentData[index].last = newLast;
+    studentData[index].l1 = newL1;
+    studentData[index].l2 = newL2;
+    studentData[index].l3 = newL3;
+    studentData[index].pre = newPre;
+    studentData[index].att = newAtt;
+
+    renderTable();
+    closeModal();
+    showToast(actionStr);
+}
+
+function closeModal() {
+    document.getElementById("editModal").style.display = "none";
+}
+
+// Start
+initSystem();
