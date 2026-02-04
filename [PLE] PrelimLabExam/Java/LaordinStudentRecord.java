@@ -1,277 +1,644 @@
-/*
- * Programmer: Jared Wackyn Laordin [23-1270-536]
- * Project: Student Record System - Java 
- */
-
 import java.awt.*;
-import java.io.*;
+import java.awt.event.*;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.Stack;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
-import javax.swing.text.AttributeSet;
-import javax.swing.text.BadLocationException;
-import javax.swing.text.PlainDocument;
+import javax.swing.table.TableRowSorter;
 
 public class LaordinStudentRecord extends JFrame {
-    
-    private JTable table;
-    private DefaultTableModel model;
-    private JTextField txtID, txtName, txtLab1, txtLab2, txtLab3, txtPrelim, txtAttendance;
 
-    // --- THEME COLORS (Red & Black) ---
-    private final Color COLOR_BG = new Color(18, 18, 18);
-    private final Color COLOR_PANEL = new Color(30, 30, 30);
-    private final Color COLOR_ACCENT = new Color(180, 0, 0);
-    private final Color COLOR_TEXT = new Color(240, 240, 240);
-    private final Font FONT_MAIN = new Font("Consolas", Font.PLAIN, 12); 
+    // --- THEME COLORS ---
+    private static final Color BG_COLOR = new Color(244, 244, 245);
+    private static final Color CARD_BG = Color.WHITE;
+    private static final Color TEXT_PRIMARY = new Color(24, 24, 27);
+    private static final Color TEXT_SECONDARY = new Color(113, 113, 122);
+    private static final Color BORDER_COLOR = new Color(228, 228, 231);
+    private static final Color DANGER_COLOR = new Color(239, 68, 68);
+    
+    // Notification Colors
+    private static final Color TOAST_BG = new Color(24, 24, 27); // Standard Black
+    private static final Color TOAST_TEXT = Color.WHITE;
+    private static final Color SUCCESS_BG = new Color(34, 197, 94); // Modern Green
+
+    // --- DATA & STATE ---
+    private ArrayList<Student> studentData = new ArrayList<>();
+    private Stack<State> undoStack = new Stack<>();
+    private Stack<State> redoStack = new Stack<>();
+    private final String CSV_FILE_NAME = "MOCK_DATA.csv";
+
+    // --- COMPONENTS ---
+    private JTable table;
+    private DefaultTableModel tableModel;
+    private TableRowSorter<DefaultTableModel> sorter;
+    private JLabel lblSelectionCount;
+    private JLabel lblTotalCount; 
+    
+    // Notification Components
+    private JPanel notificationPanel;
+    private JLabel lblNotification;
+    private Timer notificationTimer;
+    
+    // Inputs
+    private JTextField txtSearch;
+    private JTextField txtID, txtName, txtLab1, txtLab2, txtLab3, txtPrelim, txtAtt;
 
     public LaordinStudentRecord() {
-        // --- 1. Identity & Frame Setup ---
-        this.setTitle("Records - Jared Wackyn Laordin [23-1270-536]");
-        this.setSize(1000, 700); 
-        this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        this.setLocationRelativeTo(null);
-        this.setLayout(new BorderLayout());
-        this.getContentPane().setBackground(COLOR_BG);
+        setTitle("Records - Jared Wackyn Laordin [23-1270-536]");
+        setSize(1100, 800);
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setLocationRelativeTo(null);
+        getContentPane().setBackground(BG_COLOR);
+        setLayout(new BorderLayout(20, 20));
 
-        // --- 2. HEADER ---
-        JPanel headerPanel = new JPanel(new BorderLayout());
-        headerPanel.setBackground(COLOR_BG);
-        headerPanel.setBorder(new EmptyBorder(10, 0, 10, 0));
+        // --- 1. HEADER PANEL ---
+        JPanel headerPanel = new JPanel(new BorderLayout(0, 15));
+        headerPanel.setBackground(BG_COLOR);
+        headerPanel.setBorder(new EmptyBorder(20, 20, 0, 20));
 
-        JLabel lblTitle = new JLabel("S T U D E N T   R E C O R D S   [F U L L]");
-        lblTitle.setFont(new Font("Consolas", Font.BOLD, 24));
-        lblTitle.setForeground(COLOR_ACCENT);
-        lblTitle.setHorizontalAlignment(SwingConstants.CENTER);
-        headerPanel.add(lblTitle, BorderLayout.CENTER);
-        this.add(headerPanel, BorderLayout.NORTH);
+        JPanel topRow = new JPanel(new BorderLayout());
+        topRow.setBackground(BG_COLOR);
 
-        // --- 3. Table Setup (8 Columns) ---
-        String[] columns = {"ID", "First Name", "Last Name", "Lab 1", "Lab 2", "Lab 3", "Prelim", "Attendance"};
+        JPanel titleBlock = new JPanel(new GridLayout(2, 1));
+        titleBlock.setBackground(BG_COLOR);
+        JLabel lblTitle = new JLabel("STUDENT RECORDS");
+        lblTitle.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        lblTitle.setForeground(TEXT_PRIMARY);
+        JLabel lblSub = new JLabel("System Admin: Jared Wackyn Laordin — 23-1270-536");
+        lblSub.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        lblSub.setForeground(TEXT_SECONDARY);
+        titleBlock.add(lblTitle);
+        titleBlock.add(lblSub);
+
+        JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        toolbar.setBackground(BG_COLOR);
         
-        model = new DefaultTableModel(columns, 0) {
-            @Override
-            public Class<?> getColumnClass(int columnIndex) {
-                if (columnIndex >= 3) return Integer.class;
-                return String.class;
-            }
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false; 
-            }
+        JButton btnUndo = createButton("Undo", false); 
+        JButton btnRedo = createButton("Redo", false);
+        btnUndo.addActionListener(e -> undo());
+        btnRedo.addActionListener(e -> redo());
+        toolbar.add(btnUndo);
+        toolbar.add(btnRedo);
+
+        topRow.add(titleBlock, BorderLayout.WEST);
+        topRow.add(toolbar, BorderLayout.EAST);
+
+        // Search Bar
+        JPanel searchPanel = new JPanel(new BorderLayout());
+        searchPanel.setBackground(BG_COLOR);
+        JLabel lblSearchIcon = new JLabel("Search: ");
+        lblSearchIcon.setForeground(TEXT_SECONDARY);
+        
+        txtSearch = new JTextField();
+        txtSearch.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        txtSearch.setBorder(BorderFactory.createCompoundBorder(
+            new LineBorder(BORDER_COLOR),
+            new EmptyBorder(8, 10, 8, 10)
+        ));
+        
+        txtSearch.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) { filter(); }
+            public void removeUpdate(DocumentEvent e) { filter(); }
+            public void changedUpdate(DocumentEvent e) { filter(); }
+        });
+
+        searchPanel.add(lblSearchIcon, BorderLayout.WEST);
+        searchPanel.add(txtSearch, BorderLayout.CENTER);
+
+        headerPanel.add(topRow, BorderLayout.NORTH);
+        headerPanel.add(searchPanel, BorderLayout.SOUTH);
+        add(headerPanel, BorderLayout.NORTH);
+
+        // --- 2. MAIN CONTENT ---
+        JPanel mainPanel = new JPanel();
+        mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
+        mainPanel.setBackground(BG_COLOR);
+        mainPanel.setBorder(new EmptyBorder(10, 20, 20, 20));
+
+        // --- TABLE CARD ---
+        JPanel tableCard = createCardPanel();
+        tableCard.setLayout(new BorderLayout());
+        
+        String[] columns = {
+            "ID", "First Name", "Last Name", 
+            "Lab 1 (/100)", "Lab 2 (/100)", "Lab 3 (/100)", 
+            "Prelim (/100)", "Attend (/100)"
         };
-
-        table = new JTable(model);
+        
+        tableModel = new DefaultTableModel(columns, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) { return false; }
+        };
+        
+        table = new JTable(tableModel);
         styleTable(table);
-        table.setAutoCreateRowSorter(true);
-
-        JScrollPane scrollPane = new JScrollPane(table);
-        scrollPane.getViewport().setBackground(COLOR_BG);
-        scrollPane.setBorder(new LineBorder(COLOR_ACCENT, 1));
         
-        JPanel tableContainer = new JPanel(new BorderLayout());
-        tableContainer.setBackground(COLOR_BG);
-        tableContainer.setBorder(new EmptyBorder(0, 15, 0, 15));
-        tableContainer.add(scrollPane, BorderLayout.CENTER);
-        this.add(tableContainer, BorderLayout.CENTER);
+        sorter = new TableRowSorter<>(tableModel);
+        table.setRowSorter(sorter);
+        table.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
+        table.getSelectionModel().addListSelectionListener(e -> updateFooterCounts());
 
-        // --- 4. Input Panel ---
-        JPanel inputPanel = new JPanel();
-        inputPanel.setLayout(new GridLayout(2, 1, 5, 5)); 
-        inputPanel.setBackground(COLOR_PANEL);
-        inputPanel.setBorder(new LineBorder(COLOR_ACCENT, 1));
-
-        // Row 1
-        JPanel row1 = new JPanel(new FlowLayout(FlowLayout.CENTER));
-        row1.setBackground(COLOR_PANEL);
-        txtID = createStyledField(9); 
-        txtName = createStyledField(20);
-        JButton btnAdd = createStyledButton("ADD RECORD");
-        JButton btnDelete = createStyledButton("DELETE SELECTED");
-        
-        row1.add(createStyledLabel("ID:")); row1.add(txtID);
-        row1.add(createStyledLabel("Name:")); row1.add(txtName);
-        row1.add(btnAdd); row1.add(btnDelete);
-
-        // Row 2
-        JPanel row2 = new JPanel(new FlowLayout(FlowLayout.CENTER));
-        row2.setBackground(COLOR_PANEL);
-        txtLab1 = createStyledField(3);
-        txtLab2 = createStyledField(3);
-        txtLab3 = createStyledField(3);
-        txtPrelim = createStyledField(3);
-        txtAttendance = createStyledField(3);
-
-        row2.add(createStyledLabel("Lab 1:")); row2.add(txtLab1);
-        row2.add(createStyledLabel("Lab 2:")); row2.add(txtLab2);
-        row2.add(createStyledLabel("Lab 3:")); row2.add(txtLab3);
-        row2.add(createStyledLabel("Prelim:")); row2.add(txtPrelim);
-        row2.add(createStyledLabel("Attend:")); row2.add(txtAttendance);
-
-        inputPanel.add(row1);
-        inputPanel.add(row2);
-        this.add(inputPanel, BorderLayout.SOUTH);
-
-        // --- 5. Load Data (FIXED) ---
-        loadCSV("MOCK_DATA.csv");
-
-        // --- 6. Button Logic ---
-        btnAdd.addActionListener(e -> {
-            String id = txtID.getText().trim();
-            String nameFull = txtName.getText().trim();
-            
-            if(id.isEmpty() || nameFull.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Missing ID or Name."); return;
-            }
-            if (!id.matches("\\d{9}")) {
-                JOptionPane.showMessageDialog(this, "ID must be exactly 9 digits."); return;
-            }
-            if (!nameFull.matches("^[a-zA-Z\\s']+$")) {
-                JOptionPane.showMessageDialog(this, "Name invalid."); return;
-            }
-
-            try {
-                int l1 = parseGrade(txtLab1.getText());
-                int l2 = parseGrade(txtLab2.getText());
-                int l3 = parseGrade(txtLab3.getText());
-                int pre = parseGrade(txtPrelim.getText());
-                int att = parseGrade(txtAttendance.getText());
-
-                String[] nameParts = nameFull.split(" ", 2);
-                String first = nameParts[0];
-                String last = (nameParts.length > 1) ? nameParts[1] : "-";
-
-                model.addRow(new Object[]{id, first, last, l1, l2, l3, pre, att});
-                clearFields();
-
-            } catch (NumberFormatException ex) {
-                JOptionPane.showMessageDialog(this, "All grades must be numbers between 0-100!");
-            }
-        });
-
-        btnDelete.addActionListener(e -> {
-            int selectedRow = table.getSelectedRow();
-            if (selectedRow != -1) {
-                model.removeRow(table.convertRowIndexToModel(selectedRow));
-            } else {
-                JOptionPane.showMessageDialog(this, "Select a row.");
-            }
-        });
-
-        this.setVisible(true);
-    }
-
-    private int parseGrade(String text) throws NumberFormatException {
-        if(text.isEmpty()) return 0;
-        int g = Integer.parseInt(text.trim());
-        if (g < 0 || g > 100) throw new NumberFormatException("Range Error");
-        return g;
-    }
-
-    private void clearFields() {
-        txtID.setText(""); txtName.setText(""); 
-        txtLab1.setText(""); txtLab2.setText(""); txtLab3.setText(""); 
-        txtPrelim.setText(""); txtAttendance.setText("");
-    }
-
-    // --- FIX: CSV LOADER WITH AUTO-CREATE ---
-    private void loadCSV(String filename) {
-        File file = new File(filename);
-
-        // 1. If file doesn't exist, create it with sample data
-        if(!file.exists()) {
-            try (FileWriter fw = new FileWriter(file)) {
-                fw.write("id,first_name,last_name,lab1,lab2,lab3,prelim,attendance\n");
-                fw.write("231270536,Jared,Laordin,0,0,0,0,0\n");
-                System.out.println("Created new MOCK_DATA.csv");
-            } catch (IOException e) {
-                System.err.println("Could not create dummy file: " + e.getMessage());
-            }
-        }
-
-        // 2. Now read the file
-        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
-            String line;
-            br.readLine(); // Skip Header
-            
-            while ((line = br.readLine()) != null) {
-                String[] data = line.split(",");
-                if(data.length >= 8) {
-                    try {
-                        model.addRow(new Object[]{
-                            data[0], data[1], data[2], 
-                            Integer.parseInt(data[3]), Integer.parseInt(data[4]), 
-                            Integer.parseInt(data[5]), Integer.parseInt(data[6]), 
-                            Integer.parseInt(data[7])
-                        });
-                    } catch (NumberFormatException e) { /* Ignore bad rows */ }
+        table.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2 && table.getSelectedRow() != -1) {
+                    int viewRow = table.getSelectedRow();
+                    int modelRow = table.convertRowIndexToModel(viewRow);
+                    openEditDialog(modelRow);
                 }
             }
-        } catch (IOException e) {
-            JOptionPane.showMessageDialog(this, "Error reading CSV: " + e.getMessage());
+        });
+
+        JScrollPane scrollPane = new JScrollPane(table);
+        scrollPane.setBorder(BorderFactory.createEmptyBorder());
+        scrollPane.getViewport().setBackground(Color.WHITE);
+        
+        tableCard.add(scrollPane, BorderLayout.CENTER);
+        
+        // --- TABLE FOOTER (Total, Hint, Selection) ---
+        JPanel tableFooter = new JPanel(new BorderLayout());
+        tableFooter.setBackground(Color.WHITE);
+        tableFooter.setBorder(new EmptyBorder(10, 0, 0, 0));
+        
+        lblTotalCount = new JLabel("Total Records: 0");
+        lblTotalCount.setForeground(TEXT_PRIMARY);
+        lblTotalCount.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        
+        // Hint Label in Center
+        JLabel lblHint = new JLabel("Double-click a row to edit", SwingConstants.CENTER);
+        lblHint.setForeground(Color.LIGHT_GRAY);
+        lblHint.setFont(new Font("Segoe UI", Font.ITALIC, 11));
+
+        lblSelectionCount = new JLabel("0 selected");
+        lblSelectionCount.setForeground(TEXT_SECONDARY);
+        lblSelectionCount.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        
+        tableFooter.add(lblTotalCount, BorderLayout.WEST);
+        tableFooter.add(lblHint, BorderLayout.CENTER);
+        tableFooter.add(lblSelectionCount, BorderLayout.EAST);
+        tableCard.add(tableFooter, BorderLayout.SOUTH);
+
+        mainPanel.add(tableCard);
+        mainPanel.add(Box.createVerticalStrut(20)); 
+
+        // --- INPUT CARD ---
+        JPanel inputCard = createCardPanel();
+        inputCard.setLayout(new BorderLayout(0, 15));
+
+        JLabel lblManage = new JLabel("MANAGE RECORDS");
+        lblManage.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        inputCard.add(lblManage, BorderLayout.NORTH);
+
+        JPanel formPanel = new JPanel(new GridLayout(2, 1, 15, 15));
+        formPanel.setBackground(Color.WHITE);
+
+        JPanel row1 = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 0));
+        row1.setBackground(Color.WHITE);
+        txtID = createStyledTextField(12);
+        txtName = createStyledTextField(25);
+        row1.add(createInputWrapper("Student ID", txtID));
+        row1.add(createInputWrapper("Full Name", txtName));
+
+        JPanel row2 = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 0));
+        row2.setBackground(Color.WHITE);
+        txtLab1 = createStyledTextField(5);
+        txtLab2 = createStyledTextField(5);
+        txtLab3 = createStyledTextField(5);
+        txtPrelim = createStyledTextField(5);
+        txtAtt = createStyledTextField(5);
+        
+        row2.add(createInputWrapper("Lab 1 (Max 100)", txtLab1));
+        row2.add(createInputWrapper("Lab 2 (Max 100)", txtLab2));
+        row2.add(createInputWrapper("Lab 3 (Max 100)", txtLab3));
+        row2.add(createInputWrapper("Prelim (Max 100)", txtPrelim));
+        row2.add(createInputWrapper("Attend (Max 100)", txtAtt));
+
+        formPanel.add(row1);
+        formPanel.add(row2);
+        inputCard.add(formPanel, BorderLayout.CENTER);
+
+        JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        actionPanel.setBackground(Color.WHITE);
+        
+        JButton btnDelete = createButton("Delete Selected", true);
+        JButton btnAdd = createButton("Add Record", false);
+        
+        // Custom styling for Add Button
+        btnAdd.setBackground(Color.WHITE);
+        btnAdd.setForeground(Color.BLACK);
+        btnAdd.setBorder(BorderFactory.createCompoundBorder(
+            new LineBorder(Color.BLACK, 1), 
+            new EmptyBorder(8, 15, 8, 15)
+        ));
+        
+        btnDelete.addActionListener(e -> deleteSelected());
+        btnAdd.addActionListener(e -> addRecord());
+
+        actionPanel.add(btnDelete);
+        actionPanel.add(btnAdd);
+        inputCard.add(actionPanel, BorderLayout.SOUTH);
+
+        mainPanel.add(inputCard);
+        add(mainPanel, BorderLayout.CENTER);
+
+        // --- NOTIFICATION PANEL ---
+        notificationPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        notificationPanel.setBackground(BG_COLOR);
+        notificationPanel.setBorder(new EmptyBorder(10, 0, 10, 0));
+        
+        lblNotification = new JLabel(" ");
+        lblNotification.setOpaque(true);
+        lblNotification.setBackground(TOAST_BG);
+        lblNotification.setForeground(TOAST_TEXT);
+        lblNotification.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        lblNotification.setBorder(new EmptyBorder(8, 20, 8, 20));
+        lblNotification.setVisible(false);
+        
+        notificationPanel.add(lblNotification);
+        add(notificationPanel, BorderLayout.SOUTH);
+
+        loadCSVData();
+    }
+
+    // --- LOGIC: SHOW NOTIFICATION (UPDATED WITH COLORS) ---
+    private void showNotification(String message) {
+        showNotification(message, false);
+    }
+    
+    private void showNotification(String message, boolean isSuccess) {
+        lblNotification.setText(message);
+        lblNotification.setBackground(isSuccess ? SUCCESS_BG : TOAST_BG);
+        lblNotification.setVisible(true);
+        
+        if (notificationTimer != null && notificationTimer.isRunning()) {
+            notificationTimer.stop();
         }
+        
+        notificationTimer = new Timer(4000, e -> {
+            lblNotification.setVisible(false);
+        });
+        notificationTimer.setRepeats(false);
+        notificationTimer.start();
+    }
+
+    // --- LOGIC: DATA PERSISTENCE ---
+    private void saveCSVData() {
+        File file = new File(CSV_FILE_NAME);
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
+            writer.write("StudentID,first_name,last_name,LAB WORK 1,LAB WORK 2,LAB WORK 3,PRELIM EXAM,ATTENDANCE GRADE");
+            writer.newLine();
+            for (Student s : studentData) {
+                String line = String.format("%s,%s,%s,%d,%d,%d,%d,%d",
+                    s.id, s.firstName, s.lastName, s.l1, s.l2, s.l3, s.pre, s.att
+                );
+                writer.write(line);
+                writer.newLine();
+            }
+        } catch (IOException e) {
+            showNotification("Error saving CSV: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    // --- LOGIC: CSV LOADING (UPDATED WITH GREEN SUCCESS) ---
+    private void loadCSVData() {
+        File file = new File(CSV_FILE_NAME);
+        
+        if (file.exists()) {
+            try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+                parseAndLoad(br);
+                showNotification("Loaded records from file", true); // Green Notification
+                return;
+            } catch (IOException e) {
+                System.out.println("Error reading local file: " + e.getMessage());
+            }
+        } 
+        
+        InputStream is = getClass().getResourceAsStream("/" + CSV_FILE_NAME);
+        if (is == null) is = getClass().getResourceAsStream(CSV_FILE_NAME);
+
+        if (is != null) {
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(is))) {
+                parseAndLoad(br);
+                showNotification("Loaded records from internal resource", true); // Green Notification
+            } catch (IOException e) {
+                System.out.println("Error reading resource: " + e.getMessage());
+            }
+        } else {
+            showNotification("MOCK_DATA.csv not found. Created empty list.");
+        }
+    }
+
+    private void parseAndLoad(BufferedReader br) throws IOException {
+        String line;
+        boolean isFirstLine = true;
+        
+        while ((line = br.readLine()) != null) {
+            if (isFirstLine && line.toLowerCase().contains("first_name")) { 
+                isFirstLine = false; continue; 
+            }
+            String[] cols = line.split(",");
+            if (cols.length >= 8) {
+                addStudentToModel(new Student(
+                    cols[0].trim(), cols[1].trim(), cols[2].trim(),
+                    parseSafe(cols[3]), parseSafe(cols[4]), parseSafe(cols[5]),
+                    parseSafe(cols[6]), parseSafe(cols[7])
+                ));
+            }
+        }
+        renderTable();
+    }
+
+    // --- LOGIC: FILTERING ---
+    private void filter() {
+        String text = txtSearch.getText();
+        if (text.trim().length() == 0) sorter.setRowFilter(null);
+        else sorter.setRowFilter(RowFilter.regexFilter("(?i)" + text, 0, 1, 2));
+        updateFooterCounts();
+    }
+
+    // --- LOGIC: UPDATE FOOTER ---
+    private void updateFooterCounts() {
+        if (lblSelectionCount != null && table != null) {
+            lblSelectionCount.setText(table.getSelectedRowCount() + " selected");
+        }
+        if (lblTotalCount != null && table != null) {
+            // Uses getRowCount() which reflects the current filtered view
+            lblTotalCount.setText("Total Records: " + table.getRowCount());
+        }
+    }
+
+    // --- LOGIC: VALIDATION ---
+    private String validateInput(int l1, int l2, int l3, int pre, int att) {
+        if(l1 < 0 || l1 > 100) return "Lab 1 must be between 0 and 100.";
+        if(l2 < 0 || l2 > 100) return "Lab 2 must be between 0 and 100.";
+        if(l3 < 0 || l3 > 100) return "Lab 3 must be between 0 and 100.";
+        if(pre < 0 || pre > 100) return "Prelim must be between 0 and 100.";
+        if(att < 0 || att > 100) return "Attendance must be between 0 and 100.";
+        return null;
+    }
+
+    // --- LOGIC: ACTIONS ---
+    private void addRecord() {
+        String id = txtID.getText().trim();
+        String name = txtName.getText().trim();
+        int l1 = parseSafe(txtLab1.getText());
+        int l2 = parseSafe(txtLab2.getText());
+        int l3 = parseSafe(txtLab3.getText());
+        int pre = parseSafe(txtPrelim.getText());
+        int att = parseSafe(txtAtt.getText());
+
+        if (id.isEmpty() || name.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Please fill in ID and Name.");
+            return;
+        }
+        String error = validateInput(l1, l2, l3, pre, att);
+        if(error != null) { JOptionPane.showMessageDialog(this, error); return; }
+
+        String[] parts = name.split(" ");
+        String last = parts.length > 1 ? parts[parts.length - 1] : "-";
+        String first = parts.length > 1 ? name.substring(0, name.lastIndexOf(" ")) : name;
+
+        saveState("Added record: " + first + " " + last);
+
+        Student s = new Student(id, first, last, l1, l2, l3, pre, att);
+        studentData.add(s);
+        
+        saveCSVData(); // SAVE TO FILE
+        renderTable();
+        clearInputs();
+        showNotification("Added record: " + first + " " + last);
+    }
+
+    private void deleteSelected() {
+        int[] viewRows = table.getSelectedRows();
+        if (viewRows.length == 0) {
+            JOptionPane.showMessageDialog(this, "No rows selected.");
+            return;
+        }
+
+        StringBuilder names = new StringBuilder();
+        ArrayList<Student> toRemove = new ArrayList<>();
+
+        for (int viewRow : viewRows) {
+            int modelRow = table.convertRowIndexToModel(viewRow);
+            Student s = studentData.get(modelRow);
+            toRemove.add(s);
+            names.append("• ").append(s.firstName).append(" ").append(s.lastName).append("\n");
+        }
+
+        int confirm = JOptionPane.showConfirmDialog(this, 
+            "Delete " + viewRows.length + " record(s)?\n\n" + names.toString(),
+            "Confirm Delete", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+
+        if (confirm == JOptionPane.YES_OPTION) {
+            saveState("Deleted " + viewRows.length + " record(s)");
+            studentData.removeAll(toRemove);
+            
+            saveCSVData(); // SAVE TO FILE
+            renderTable();
+            showNotification("Deleted " + viewRows.length + " records");
+        }
+    }
+
+    private void openEditDialog(int modelRow) {
+        Student s = studentData.get(modelRow);
+        
+        JTextField eId = new JTextField(s.id); eId.setEditable(false);
+        JTextField eFirst = new JTextField(s.firstName);
+        JTextField eLast = new JTextField(s.lastName);
+        JTextField eL1 = new JTextField(String.valueOf(s.l1));
+        JTextField eL2 = new JTextField(String.valueOf(s.l2));
+        JTextField eL3 = new JTextField(String.valueOf(s.l3));
+        JTextField ePre = new JTextField(String.valueOf(s.pre));
+        JTextField eAtt = new JTextField(String.valueOf(s.att));
+
+        Object[] message = {
+            "ID:", eId, "First Name:", eFirst, "Last Name:", eLast,
+            "Lab 1:", eL1, "Lab 2:", eL2, "Lab 3:", eL3, "Prelim:", ePre, "Attend:", eAtt
+        };
+
+        int option = JOptionPane.showConfirmDialog(this, message, "Edit Record", JOptionPane.OK_CANCEL_OPTION);
+        
+        if (option == JOptionPane.OK_OPTION) {
+            int l1 = parseSafe(eL1.getText());
+            int l2 = parseSafe(eL2.getText());
+            int l3 = parseSafe(eL3.getText());
+            int pre = parseSafe(ePre.getText());
+            int att = parseSafe(eAtt.getText());
+            
+            String error = validateInput(l1, l2, l3, pre, att);
+            if(error != null) { JOptionPane.showMessageDialog(this, error); return; }
+
+            ArrayList<String> changes = new ArrayList<>();
+            if(!s.firstName.equals(eFirst.getText())) changes.add("First Name");
+            if(!s.lastName.equals(eLast.getText())) changes.add("Last Name");
+            if(s.l1 != l1) changes.add("Lab 1");
+            if(s.l2 != l2) changes.add("Lab 2");
+            if(s.l3 != l3) changes.add("Lab 3");
+            if(s.pre != pre) changes.add("Prelim");
+            if(s.att != att) changes.add("Attend");
+            
+            if(changes.isEmpty()) { showNotification("No changes made."); return; }
+
+            String changeStr = "Updated " + s.firstName + ": " + String.join(", ", changes);
+            saveState(changeStr);
+
+            s.firstName = eFirst.getText(); s.lastName = eLast.getText();
+            s.l1 = l1; s.l2 = l2; s.l3 = l3; s.pre = pre; s.att = att;
+            
+            saveCSVData(); // SAVE TO FILE
+            renderTable();
+            showNotification(changeStr);
+        }
+    }
+
+    // --- LOGIC: UNDO / REDO ---
+    private void saveState(String action) {
+        ArrayList<Student> copy = new ArrayList<>();
+        for (Student s : studentData) copy.add(s.copy());
+        
+        undoStack.push(new State(copy, action));
+        if (undoStack.size() > 50) undoStack.remove(0);
+        redoStack.clear();
+    }
+
+    private void undo() {
+        if (undoStack.isEmpty()) { showNotification("Nothing to undo"); return; }
+        State lastState = undoStack.pop();
+        
+        ArrayList<Student> currentCopy = new ArrayList<>();
+        for (Student s : studentData) currentCopy.add(s.copy());
+        redoStack.push(new State(currentCopy, lastState.action));
+
+        studentData = lastState.data;
+        saveCSVData(); // SAVE TO FILE
+        renderTable();
+        showNotification("Undid: " + lastState.action);
+    }
+
+    private void redo() {
+        if (redoStack.isEmpty()) { showNotification("Nothing to redo"); return; }
+        State futureState = redoStack.pop();
+        
+        ArrayList<Student> currentCopy = new ArrayList<>();
+        for (Student s : studentData) currentCopy.add(s.copy());
+        undoStack.push(new State(currentCopy, futureState.action));
+
+        studentData = futureState.data;
+        saveCSVData(); // SAVE TO FILE
+        renderTable();
+        showNotification("Redid: " + futureState.action);
+    }
+
+    // --- HELPERS ---
+    private int parseSafe(String text) {
+        try { return Integer.parseInt(text.trim()); } catch (Exception e) { return 0; }
+    }
+
+    private void addStudentToModel(Student s) { studentData.add(s); }
+
+    private void renderTable() {
+        tableModel.setRowCount(0);
+        for (Student s : studentData) {
+            tableModel.addRow(new Object[]{s.id, s.firstName, s.lastName, s.l1, s.l2, s.l3, s.pre, s.att});
+        }
+        updateFooterCounts();
+    }
+
+    private void clearInputs() {
+        txtID.setText(""); txtName.setText("");
+        txtLab1.setText(""); txtLab2.setText(""); txtLab3.setText(""); 
+        txtPrelim.setText(""); txtAtt.setText("");
+    }
+
+    // --- UI FACTORIES ---
+    private JPanel createCardPanel() {
+        JPanel p = new JPanel();
+        p.setBackground(CARD_BG);
+        p.setBorder(BorderFactory.createCompoundBorder(new LineBorder(BORDER_COLOR, 1), new EmptyBorder(20, 20, 20, 20)));
+        return p;
+    }
+
+    private JPanel createInputWrapper(String labelText, JComponent field) {
+        JPanel p = new JPanel(new BorderLayout(0, 5));
+        p.setBackground(Color.WHITE);
+        JLabel l = new JLabel(labelText.toUpperCase());
+        l.setFont(new Font("Segoe UI", Font.BOLD, 10));
+        l.setForeground(TEXT_SECONDARY);
+        p.add(l, BorderLayout.NORTH);
+        p.add(field, BorderLayout.CENTER);
+        return p;
+    }
+
+    private JTextField createStyledTextField(int cols) {
+        JTextField tf = new JTextField(cols);
+        tf.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        tf.setBorder(BorderFactory.createCompoundBorder(new LineBorder(BORDER_COLOR), new EmptyBorder(5, 8, 5, 8)));
+        return tf;
+    }
+
+    private JButton createButton(String text, boolean isDanger) {
+        JButton b = new JButton(text);
+        b.setFocusPainted(false);
+        b.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        b.setBackground(Color.WHITE);
+        b.setForeground(isDanger ? DANGER_COLOR : TEXT_PRIMARY);
+        b.setBorder(BorderFactory.createCompoundBorder(new LineBorder(BORDER_COLOR), new EmptyBorder(8, 15, 8, 15)));
+        b.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        return b;
     }
 
     private void styleTable(JTable table) {
-        table.setBackground(COLOR_BG);
-        table.setForeground(COLOR_TEXT);
-        table.setGridColor(new Color(60, 60, 60));
-        table.setSelectionBackground(COLOR_ACCENT);
-        table.setSelectionForeground(Color.WHITE);
-        table.setRowHeight(25);
-        table.setFont(FONT_MAIN);
+        table.setRowHeight(35);
+        table.setShowVerticalLines(false);
+        table.setGridColor(BORDER_COLOR);
+        table.setSelectionBackground(new Color(244, 244, 245));
+        table.setSelectionForeground(Color.BLACK);
+        table.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        
         JTableHeader header = table.getTableHeader();
-        header.setBackground(COLOR_ACCENT);
-        header.setForeground(Color.WHITE);
-        header.setFont(new Font("Consolas", Font.BOLD, 14));
-        header.setBorder(new LineBorder(Color.BLACK));
-        DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
-        centerRenderer.setHorizontalAlignment(JLabel.CENTER);
-        table.setDefaultRenderer(Object.class, centerRenderer);
-        table.setDefaultRenderer(Integer.class, centerRenderer);
-    }
-
-    private JTextField createStyledField(int cols) {
-        JTextField field = new JTextField(cols);
-        if (cols == 9) {
-            field.setDocument(new PlainDocument() {
-                @Override
-                public void insertString(int offs, String str, AttributeSet a) throws BadLocationException {
-                    if (str == null) return;
-                    if ((getLength() + str.length()) <= 9) super.insertString(offs, str, a);
-                }
-            });
-        }
-        field.setBackground(new Color(50, 50, 50));
-        field.setForeground(Color.WHITE);
-        field.setCaretColor(COLOR_ACCENT);
-        field.setBorder(new LineBorder(COLOR_ACCENT, 1));
-        field.setFont(FONT_MAIN);
-        return field;
-    }
-
-    private JButton createStyledButton(String text) {
-        JButton btn = new JButton(text);
-        btn.setBackground(COLOR_ACCENT);
-        btn.setForeground(Color.WHITE);
-        btn.setFocusPainted(false);
-        btn.setFont(new Font("Consolas", Font.BOLD, 12));
-        btn.setBorder(BorderFactory.createEmptyBorder(8, 15, 8, 15));
-        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        return btn;
-    }
-
-    private JLabel createStyledLabel(String text) {
-        JLabel lbl = new JLabel(text);
-        lbl.setForeground(COLOR_TEXT);
-        lbl.setFont(FONT_MAIN);
-        return lbl;
+        header.setBackground(new Color(250, 250, 250));
+        header.setForeground(TEXT_SECONDARY);
+        header.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        header.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, BORDER_COLOR));
+        ((DefaultTableCellRenderer)header.getDefaultRenderer()).setHorizontalAlignment(JLabel.LEFT);
     }
 
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> new LaordinStudentRecord());
+        try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch (Exception ignored) {}
+        SwingUtilities.invokeLater(() -> new LaordinStudentRecord().setVisible(true));
+    }
+
+    // --- INNER CLASSES ---
+    static class Student {
+        String id, firstName, lastName;
+        int l1, l2, l3, pre, att;
+
+        public Student(String id, String f, String l, int l1, int l2, int l3, int pre, int att) {
+            this.id = id; this.firstName = f; this.lastName = l;
+            this.l1 = l1; this.l2 = l2; this.l3 = l3; this.pre = pre; this.att = att;
+        }
+        public Student copy() { return new Student(id, firstName, lastName, l1, l2, l3, pre, att); }
+    }
+
+    static class State {
+        ArrayList<Student> data;
+        String action;
+        public State(ArrayList<Student> data, String action) { this.data = data; this.action = action; }
     }
 }
